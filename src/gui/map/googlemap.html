@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+        <style type="text/css">
+            html { height: 100% }
+            body { height: 100%; margin: 0px; padding: 0px }
+            #map_canvas { height: 100%; background-color: #666970; }
+        </style>
+
+        <style type="text/css">
+
+            * {
+                -webkit-touch-callout: none;
+                -webkit-user-select: none; /* Disable selection/copy in UIWebView */
+            }
+
+            .body{
+                font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+                font-weight: 900;
+            }
+
+            .table {
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+
+            .row {
+                display: table-row;
+                font-weight: normal;
+                background: #f6f6f6;
+                color: #131313;
+            }
+
+            .row:nth-of-type(odd) {
+                background: #e9e9e9;
+            }
+
+            .row.header {
+                font-weight: bold;
+                color: #ffffff;
+                background: #ea6153;
+            }
+
+            .tag {
+                background: #f6f6f6;
+                padding: 4px;
+                font-size: 9pt;
+                color: #000000;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+
+            .tag:hover{
+                background: #e9e9e9;
+            }
+
+        </style>
+
+        <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false&libraries=geometry,visualization&language=es"></script>
+        <script type="text/javascript" src="eshapesv3.js"></script>
+        <script type="text/javascript" src="richmarker.js"></script>
+        <script type="text/javascript">    
+            //map
+            var gMap;
+    
+            // geocoder
+            var geocoder = new google.maps.Geocoder(); 
+
+            // list of tracks with polygons and polyline
+            var objects = {};
+            var show_tags = true;
+            
+            function sleep(ms)
+            {
+                var dt = new Date();
+                dt.setTime(dt.getTime() + ms);
+                while (new Date().getTime() < dt.getTime());
+            }
+        
+            var lobAngle = 0;
+            function drawLob(){
+                lobAngle += 10 % 360;
+                setObject({'object_type':'lob','lob_angle': lobAngle, 'lob_reach':2222255.0,'lob_lat_origin':40.5358,'lob_error':3, 'ts':new Date().getTime(),'object_color':'#0000ff','object_id':3335.0,'lob_lon_origin':-4.0184,'type':'object', 'object_tag':'lob'});
+            }
+    
+            var circleLat = 40.5358;
+            var circleLon = -4.0184;
+            var circleRadius = 22222.0;
+            var countt = 0;
+            function drawCircle(){
+                circleLat -= Math.random()*0.3;
+                circleLon -= Math.random()*0.3;
+                circleRadius -= 100;
+                setObject({object_type:'circle',circle_radius:circleRadius,circle_lat:circleLat,ts:new Date().getTime(),object_color:'#ff0000',object_history:50,object_id:3334.0,circle_lon:circleLon,type:'object', object_tag:'5544/C2', object_details:["hola:jeje"]});
+        
+                circleLat -= Math.random()*0.3;
+                circleLon -= Math.random()*0.3;
+        
+                if(countt<60){
+                    setObject({'object_type':'ellipse','ellipse_minor_axis':22222.0,'ellipse_lat':circleLat,'ts':new Date().getTime(),'object_color':'#00ff00','ellipse_major_axis':33333.0,'object_id':333.0, object_path:25, 'ellipse_angle':15.0,'ellipse_lon':circleLon,'type':'object', object_details:{DFSID:5}, 'object_tag':'ellipse', object_history: (countt>10 ? (countt>20? (countt>50? 30 :20 ) :0 ) : 10)});
+                }else{
+                    setObject({object_type:'circle','circle_radius':22222.0,'circle_lat':circleLat,'ts':new Date().getTime(),'object_color':'#00ff00','object_id':333.0,'circle_lon':circleLon,'type':'object', object_path:15, 'object_tag':'ellipse converted to circle',  object_details:{DFSID:6}, history: (countt>10 ? (countt>20? (countt>50? 30 :20 ) :0 ) : 10)});
+                }
+        
+                setObject({object_type:'marker',object_tag:'plane',object_id:30002330,marker_lat:circleLat,marker_lon:circleLon});
+        
+                countt++;
+            }
+    
+             
+            // initialize the map and the airplane marker
+            function initialize() {
+                // initialize map 
+                var latlng = new google.maps.LatLng(40.5358, -4.0184);
+                var myOptions = {
+                    zoom: 5,
+                    center: latlng,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    mapTypeControl: false,
+                    navigationControl: true,
+                    streetViewControl: false,
+                    backgroundColor: "#666970"
+                };
+                gMap = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+                
+                
+                //var intervalID = setInterval(function(){drawLob();}, 1000);
+                //var intervalID = setInterval(function(){drawCircle();}, 800);
+                
+               
+                //setTracingObject(333.0);
+                //startListeningLocations();
+                
+            }
+    
+            var tracingObject = undefined;
+    
+            function setTracingObject(objectId){
+                tracingObject = objectId;
+                var object = objects[objectId];
+                if(object){
+                    zoomToObject(objectId);
+                }
+            }
+    
+            function removeTracing(){
+                tracingObject = undefined;
+            }
+    
+            function panToObject(objectId){
+                var existingObject = objects[objectId];
+                if(existingObject){
+                    gMap.panTo(existingObject.objectPosition);
+                }
+            }
+    
+            function zoomToObject(objectId){
+                var existingObject = objects[objectId];
+                if(existingObject){
+                    gMap.panTo(existingObject.objectPosition);
+                    //gMap.setZoom(10);
+                }
+            }
+   
+            function panToAutoZoom(lat, lon) {
+                var panTo = new google.maps.LatLng(lat, lon);
+                gMap.panTo(panTo);
+                gMap.setZoom(10);
+            }
+    
+            function panTo(lat, lon) {
+                var panTo = new google.maps.LatLng(lat, lon);
+                gMap.panTo(panTo);
+            }
+    
+            function goToLocation(searchString) {
+                geocoder.geocode( {'address': searchString}, function(results, status) {        
+                    if (status == google.maps.GeocoderStatus.OK) {
+                        gMap.setCenter(results[0].geometry.location);
+                    }else{
+                        alert("Geocode was not successful for the following reason: " + status);
+                    }
+                }); 
+            }
+
+            // zoom in the map
+            function zoomIn() {
+                var zoomLevel = gMap.getZoom();
+                if (zoomLevel <= 20) gMap.setZoom(zoomLevel + 1);
+            }
+
+            // zoom out the map
+            function zoomOut() {
+                var zoomLevel = gMap.getZoom();
+                if (zoomLevel > 0) gMap.setZoom(zoomLevel - 1);
+            }
+
+            // changes the map type to road
+            function setMapTypeRoad() {
+                gMap.setMapTypeId(google.maps.MapTypeId.ROADMAP);
+            }
+    
+            // changes the map type to satellite
+            function setMapTypeSatellite() {
+                gMap.setMapTypeId(google.maps.MapTypeId.SATELLITE);
+            }
+    
+            // changes the map type to hybrid
+            function setMapTypeHybrid() {
+                gMap.setMapTypeId(google.maps.MapTypeId.HYBRID);
+            }
+    
+            // changes the map type to terrain
+            function setMapTypeTerrain() {
+                gMap.setMapTypeId(google.maps.MapTypeId.TERRAIN);
+            }
+
+
+            function updateOrCreateTrack(existingObject, oMap)
+            {
+                var track_position = new google.maps.LatLng(oMap.track_latitude, oMap.track_longitude);
+                var track_width = oMap.track_width / 2.0;
+                var track_length = oMap.track_length / 2.0;
+                var track_heading = oMap.track_heading;
+
+                var top = new google.maps.geometry.spherical.computeOffset(track_position, track_length, 0+track_heading);
+                var bottom = new google.maps.geometry.spherical.computeOffset(track_position, track_length, 180+track_heading);
+
+                var bottomLeft = new google.maps.geometry.spherical.computeOffset(bottom, track_width, 270 + track_heading);
+                var bottomRight = new google.maps.geometry.spherical.computeOffset(bottom, track_width, 90 + track_heading);
+
+                var topLeft = new google.maps.geometry.spherical.computeOffset(bottomLeft, 0.75*oMap.track_length, 0 + track_heading);
+                var topRight = new google.maps.geometry.spherical.computeOffset(bottomRight, 0.75*oMap.track_length, 0 + track_heading);
+
+                var poly_points = [];
+
+                poly_points.push(topLeft);
+                poly_points.push(top);
+                poly_points.push(topRight);
+                poly_points.push(bottomRight);
+                poly_points.push(bottomLeft);
+
+                if(existingObject){
+                    existingObject.setPath(poly_points);
+                }else{
+                    existingObject = new google.maps.Polygon({path: poly_points, clickable:false});
+                }
+
+                // save the object position for drawing tags
+                existingObject.objectPosition = track_position;
+
+                return existingObject;
+            }
+
+            function updateOrCreateHeatMap(existingObject, oMap)
+            {
+                var heat_points = new google.maps.MVCArray();
+
+                var heatPoints = oMap.heat_points;
+                for(i=0;i<heatPoints.length;i++){
+                    heat_points.push(new google.maps.LatLng(heatPoints[i][0], heatPoints[i][1]));
+                }
+
+
+                if(existingObject){
+                    existingObject.setData(heat_points);
+                }else{
+                    existingObject = new google.maps.visualization.HeatmapLayer({data: heat_points});
+                    existingObject.set('radius', 20);
+                }
+
+                // save the object position for drawing tags
+                existingObject.objectPosition = heat_points[0];
+
+                return existingObject;
+            }
+
+            function updateHeatMapAdd(existingObject, oMap)
+            {
+               if(existingObject){
+                    existingArray = existingObject.getData();
+                    var heatPoints = oMap.heat_points;
+                    for(i=0;i<heatPoints.length;i++){
+                        existingArray.push(new google.maps.LatLng(heatPoints[i][0], heatPoints[i][1]));
+                    }
+                    existingObject.setData(existingArray);
+               }
+               return existingObject;
+            }
+
+            function updateOrCreateMarkerObject(existingObject, oMap){
+                var position = new google.maps.LatLng(oMap.marker_lat, oMap.marker_lon);
+        
+                if(!existingObject){
+                    var objectImg = new google.maps.MarkerImage('airplane.png', new google.maps.Size(32,32), new google.maps.Point(0,0), new google.maps.Point(16,16));
+                    existingObject = new google.maps.Marker({position: position, icon:objectImg});
+                }else{
+                    existingObject.setPosition(position);
+                }
+                existingObject.objectPosition = position;
+                
+                return existingObject;
+            }
+    
+            // removes all objects from the map
+            function removeAllObjects() {
+                for(var objectId in objects){
+                    removeObject(objectId);
+                }
+            }
+    
+            // remove all objects
+            function removeObject(objectId) {
+                var object = objects[objectId];
+                if(object){
+                    clearObjectHistory(object);
+                    clearObjectPath(object);
+                    removeObjectTag(object);
+                    object.setMap(null);
+                    delete objects[objectId];
+                }
+            }
+
+             function hideTags(){
+                show_tags = false;
+                for(var objectId in objects){
+                    var object = objects[objectId];
+                    if(object){
+                        hideObjectTag(object);
+                    }
+                }
+             }
+
+             function showTags(){
+                show_tags = true;
+                for(var objectId in objects){
+                    var object = objects[objectId];
+                    if(object){
+                        showObjectTag(object);
+                    }
+                }
+             }
+    
+            // start object editing
+            function startEditObject(objectId) {
+                var object = objects[objectId];
+                if(object){
+                    object.setEditable(true);
+                }
+            }  
+            
+            function getObjectPath(objectId){
+                var object = objects[objectId];
+                return object ? object.getPath().getArray() : new Array();
+            }
+   
+            // end object editing
+            function endEditObject(objectId) {
+                var object = objects[objectId];
+                if(object){
+                    object.setEditable(false);
+                }
+            }
+    
+            function setObject(oMap){
+                // get object properties
+                var objectType = oMap.object_type;
+                var objectId = oMap.object_id;
+                var existingObject = objects[objectId];
+                var object = getObject(objectType, existingObject, oMap);
+      
+                if(object){
+                    
+                    // set the index in the map
+                    object.setOptions({zIndex:oMap.ts});
+            
+                    // set/update object color
+                    var objectColor = oMap.object_color;
+                    if(objectColor){
+                        if(!(objectColor===object.objectColor)){
+                            object.setOptions({strokeColor:objectColor, fillColor:objectColor});
+                            object.objectColor = objectColor;
+                        }
+                    }
+            
+                    // set/update object tag
+                    var objectTag = oMap.object_tag;
+                    if(objectTag){
+                        object.objectId = oMap.object_id,
+                        object.objectTagInfo = objectTag;
+                        object.objectTagDetails = oMap.object_details;
+                        updateOrCreateTag(object);
+                        // remove existing tag if any
+                    }else if(object.objectTag){
+                        removeObjectTag(object);
+                    }
+            
+                    // history of shapes for a given object
+                    var objectHistoryCount = oMap.object_history;
+                    if(!(objectHistoryCount===object.historyMax)){
+                        manageObjectHistory(object, objectHistoryCount);
+                    }
+                    
+                    // path history
+                    var objectPathCount = oMap.object_path;
+                    if(!(objectPathCount===object.pathMax)){
+                        manageHistoryPath(object, objectPathCount);
+                    }
+
+                    // save the object if new
+                    if(!existingObject && object){
+                
+                        // save the object
+                        objects[objectId] = object;
+                
+                        // set some common drawing options
+                        object.setOptions({strokeWeight:1.3,fillOpacity:0.10});
+                        
+                        object.setMap(gMap);
+                    }
+            
+                    if(object){
+                        if(objectId===tracingObject){
+                            gMap.panTo(object.objectPosition);
+                        }
+                    }
+                }
+            }
+    
+            function getObject(objectType, object, oMap){
+        
+                // manage object history
+                if(object && object.historyMax>0){
+                    manageHistory(object, oMap);
+                }
+                
+                // create the object depending on its type
+                if(objectType==='ellipse'){
+                    object = updateOrCreateEllipseObject(object, oMap);
+                }else if(objectType==='lob'){
+                    object = updateOrCreateLobObject(object, oMap);
+                }else if(objectType==='circle'){
+                    object = updateOrCreateCircleObject(object, oMap);
+                }else if(objectType==='rect'){
+                    object = updateOrCreateRectObject(object, oMap);
+                }else if(objectType==='poly'){
+                    object = updateOrCreatePolyObject(object, oMap);
+                }else if(objectType==='polyline'){
+                    object = updateOrCreatePolylineObject(object, oMap);
+                }else if(objectType==='line'){
+                    object = updateOrCreateLineObject(object, oMap);
+                }else if(objectType==='geodesic_line'){
+                    object = updateOrCreateLineObject(object, oMap, true);
+                }else if(objectType==='marker'){
+                    object = updateOrCreateMarkerObject(object, oMap);
+                }else if(objectType==='heatmap'){
+                    object = updateOrCreateHeatMap(object, oMap);
+                }else if(objectType==='heatmap_update'){
+                    object = updateHeatMapAdd(object, oMap);
+                }else if(objectType==='track'){
+                    object = updateOrCreateTrack(object, oMap);
+                }
+                
+                if(object && object.pathMax>0){
+                    managePath(object);
+                }
+   
+                return object;
+            }
+            
+            function clearObjectPath(object){
+                if(object.path){
+                    object.path.setMap(null);
+                    delete object.path;
+                }
+            }
+    
+            function manageHistoryPath(object, objectPathCount){
+                var originalValue = objectPathCount;
+                objectPathCount = objectPathCount ? originalValue : 0;
+                
+                // create history max if new
+                if(!object.path && objectPathCount>0){
+                    // the polyline for represent object path
+                    object.path = new google.maps.Polyline({strokeColor:object.objectColor, strokeWeight:object.strokeWeight, map:gMap, clickable:false, geodesic:true});
+                    managePath(object);
+                }
+                
+                // drop history when necessary
+                if(objectPathCount<object.pathMax){
+                    while(object.path.getPath().getLength()>objectPathCount){
+                        object.path.getPath().removeAt(0);
+                    }
+                }
+                
+                object.pathMax = originalValue;
+                
+                if(objectPathCount===0 && object.path){
+                    object.path.setMap(null);
+                    delete object.path;
+                }
+            }
+            
+            function clearObjectHistory(object){
+                if(object.history){
+                    manageObjectHistory(object, 0);
+                }
+            }
+            
+            function manageObjectHistory(object, objectHistoryCount){
+                var originalValue = objectHistoryCount;
+                objectHistoryCount = objectHistoryCount ? originalValue : 0;
+                
+                // create history max if new
+                if(!object.history && objectHistoryCount>0){
+                    // array of historic polygons
+                    object.history = new google.maps.MVCArray();
+                    object.historyIndex = 0;
+                }
+                        
+                // drop history when necessary
+                if(objectHistoryCount<object.historyMax){
+                    if(object.history.getLength()>objectHistoryCount){
+                        var deleteCount = object.history.getLength()-objectHistoryCount;
+                        while(deleteCount>=0){
+                            var historyObject = object.history.pop();
+                            if(historyObject){
+                                historyObject.setMap(null);    
+                            }
+                            deleteCount--;
+                        }
+                        object.historyIndex = Math.max(objectHistoryCount-1,0);   
+                    }
+                }
+                        
+                object.historyMax = originalValue;
+                        
+                if(objectHistoryCount===0 && object.history){
+                    delete object.history;
+                    delete object.historyIndex;
+                }
+            }
+            
+            function managePath(object){
+                // update the index;
+                var objectPath = object.path.getPath();
+
+                if(objectPath.getLength()>object.pathMax){
+                    objectPath.removeAt(0);
+                }
+
+                objectPath.push(object.objectPosition);
+            }
+    
+            function manageHistory(object, oMap){
+                var historyObject = object.history.getAt(object.historyIndex);
+
+                // for tracks keep the heading rather than its actual shape
+                if(oMap.track_heading){
+                    var heading_figure = [];
+                    heading_figure.push(object.objectPosition);
+                    heading_figure.push(new google.maps.geometry.spherical.computeOffset(object.objectPosition, 5, oMap.track_heading+165));
+                    heading_figure.push(new google.maps.geometry.spherical.computeOffset(object.objectPosition, 5, oMap.track_heading-165));
+                    if(historyObject){
+                        historyObject.setPath(heading_figure);
+                        historyObject.setOptions({zIndex:object.zIndex});
+                    }else{
+                        historyObject = new google.maps.Polygon({map:gMap, path:heading_figure, strokeColor:object.strokeColor, strokeWeight:object.strokeWeight, strokeOpacity:1, fillOpacity:0, clickable:false, zIndex:object.zIndex});
+                        object.history.push(historyObject);
+                    }
+                // other type of objects will show its shape
+                }else{
+                    if(historyObject){
+                        // clear the old historic
+                        historyObject.setPath(object.getPath());
+                        historyObject.setOptions({zIndex:object.zIndex});
+                    }else{
+                        // create new object
+                        historyObject = new google.maps.Polygon({map:gMap, path:object.getPath(), strokeColor:object.strokeColor, strokeWeight:object.strokeWeight, strokeOpacity:0.8, fillOpacity:0, clickable:false, zIndex:object.zIndex});
+                        // save in the history object array
+                        object.history.push(historyObject);
+                    }
+                }
+
+                // update the index
+                object.historyIndex = (object.historyIndex +1) % object.historyMax;
+            }
+
+            function updateOrCreateEllipseObject(object, oMap){
+                var ellipseCenter = new google.maps.LatLng(oMap.ellipse_lat, oMap.ellipse_lon);
+                var paths = google.maps.Polygon.Ellipse.Paths(ellipseCenter, oMap.ellipse_major_axis, oMap.ellipse_minor_axis, oMap.ellipse_angle);
+         
+                // update the existing ellipse paths
+                if(object){
+                    object.setPath(paths);
+                    // create the object
+                }else{
+                    object = new google.maps.Polygon({path: paths, clickable:false});
+                }
+         
+                // save the object position for drawing tags
+                object.objectPosition = ellipseCenter;
+         
+                return object;
+            }
+    
+            function updateOrCreatePolyObject(object, oMap){
+
+                var polygon_description = [];
+
+                // compute polygon points
+                var poly_points = [];
+                var polyPath = oMap.poly_path;
+                for(i=0;i<polyPath.length;i++){
+                    poly_points.push(new google.maps.LatLng(polyPath[i][0], polyPath[i][1]));
+                }
+                polygon_description.push(poly_points);
+
+                // fill holes points
+                if(oMap.poly_holes){
+                    var holesPaths = oMap.poly_holes;
+                    for (i=0;i<holesPaths.length;i++)
+                    {
+                        var holePath = holesPaths[i];
+                        var hole_points = [];
+                        for(j=0;j<holePath.length;j++){
+                            hole_points.push(new google.maps.LatLng(holePath[j][0],holePath[j][1]));
+                        }
+                        polygon_description.push(hole_points);
+                    }
+                }
+
+                if(object){
+                    object.setPaths(polygon_description);
+                }else{
+                    object = new google.maps.Polygon({paths: polygon_description, clickable:false});
+                }
+        
+                // save the object position for drawing tags
+                if(oMap.poly_center){
+                    var polyCenter = oMap.poly_center;
+                    object.objectPosition = new google.maps.LatLng(polyCenter[0], polyCenter[1]);
+                }else{
+                    object.objectPosition = poly_points[0];
+                }
+        
+                return object;
+            }
+
+            function updateOrCreatePolylineObject(object, oMap){
+
+                var poly_points = [];
+
+                var polyPath = oMap.polyline_path;
+                for(i=0;i<polyPath.length;i++){
+                    poly_points.push(new google.maps.LatLng(polyPath[i][0], polyPath[i][1]));
+                }
+
+                if(object){
+                    object.setPath(poly_points);
+                }else{
+                    object = new google.maps.Polyline({path: poly_points, clickable:false});
+                }
+
+                // save the object position for drawing tags
+                if(oMap.poly_center){
+                    var polyCenter = oMap.poly_center;
+                    object.objectPosition = new google.maps.LatLng(polyCenter[0], polyCenter[1]);
+                }else{
+                    object.objectPosition = poly_points[0];
+                }
+
+                return object;
+            }
+    
+            function updateOrCreateLobObject(object, oMap){
+                var lobStart = new google.maps.LatLng(oMap.lob_lat_origin, oMap.lob_lon_origin);
+        
+                var lobError = oMap.lob_error;
+                var lobReach = oMap.lob_reach;
+                var lobAngle = oMap.lob_angle;
+                var lobPath;
+        
+                if(lobError === undefined || lobError == 0)
+                {
+                    var lobEnd = new google.maps.geometry.spherical.computeOffset(lobStart, lobReach, lobAngle);
+                    lobPath = [ lobStart, lobEnd ];
+                }else{
+                    var lobEnd1 = new google.maps.geometry.spherical.computeOffset(lobStart, lobReach, lobAngle+lobError);
+                    var lobEnd2 = new google.maps.geometry.spherical.computeOffset(lobStart, lobReach, lobAngle-lobError);
+                    lobPath = [ lobStart, lobEnd1, lobEnd2, lobStart ];
+                }
+        
+                if(object){
+                    object.setPath(lobPath);
+                }else{
+                    object = new google.maps.Polygon({path: lobPath, clickable:false});
+                }
+        
+                // save the object position for drawing tags
+                object.objectPosition = lobStart;
+        
+                return object;
+            }
+
+            function updateOrCreateCircleObject(object, oMap){
+                // get circle center
+                var circleCenter = new google.maps.LatLng(oMap.circle_lat, oMap.circle_lon);
+                var paths = google.maps.Polygon.Circle.Paths(circleCenter, oMap.circle_radius);
+        
+                if(object){
+                    object.setPath(paths);
+                }else{
+                    object = new google.maps.Polygon({path: paths, clickable:false});
+                }
+        
+                // save the object position for drawing tags
+                object.objectPosition = circleCenter;
+        
+                return object;
+            }
+    
+            function updateOrCreateLineObject(object, oMap, geodesic){
+                var line_points = new google.maps.MVCArray();
+        
+                var linePath = oMap.line_path;
+                for(i=0;i<linePath.length;i++){
+                    line_points.push(new google.maps.LatLng(linePath[i][0], linePath[i][1]));
+                }
+        
+                if(object){
+                    object.setPath(line_points);
+                    object.setOptions({geodesic: (geodesic ? true : false)});
+                }else{
+                    object = new google.maps.Polyline({path: line_points, clickable:false, geodesic: (geodesic ? true : false)});
+                }
+        
+                // save the object position for drawing tags
+                object.objectPosition = line_points.getAt(0);
+        
+                return object;
+            }
+    
+    
+            /**
+             * 
+             * SHAPE TAGS!
+             *
+             */
+        
+            function updateOrCreateTag(object){
+                if(object.objectTag){
+                    updateObjectTag(object);
+                }else{
+                    createObjectTag(object);    
+                }
+            }
+            
+            function removeObjectTag(object){
+                var marker = object.objectTag;
+                if(marker){
+                    if(marker.line){
+                        marker.line.setMap(null);
+                        delete marker.line;
+                    }
+                    google.maps.event.clearListeners(marker, 'position_changed');
+                    google.maps.event.clearListeners(marker, 'dragstart');
+                    google.maps.event.clearListeners(marker, 'click');
+                    marker.setMap(null);
+                    delete object.objectTag;
+                }
+            }
+
+            function hideObjectTag(object){
+                var marker = object.objectTag;
+                if(marker){
+                    if(marker.line){
+                        marker.line.setVisible(false);
+                    }
+                    marker.setVisible(false);
+                }
+            }
+
+            function showObjectTag(object){
+                var marker = object.objectTag;
+                if(marker){
+                    if(marker.line){
+                        marker.line.setVisible(true);
+                    }
+                    marker.setVisible(true);
+                }
+            }
+    
+            function updateObjectTag(object){
+                var existingTag = object.objectTag;
+                
+                // update tag position
+                if(!existingTag.objectPosition.equals(object.objectPosition)){
+                    if(existingTag.manual==true){
+                        // calculate object delta
+                        var latDiff = existingTag.objectPosition.lat() - object.objectPosition.lat();
+                        var lonDiff = existingTag.objectPosition.lng() - object.objectPosition.lng();
+                        existingTag.objectPosition = object.objectPosition;
+
+                        var newTagPos = new google.maps.LatLng(existingTag.getPosition().lat()-latDiff, existingTag.getPosition().lng()-lonDiff);
+                        var linePath = [object.objectPosition, newTagPos];
+                
+                        existingTag.line.setPath(linePath);
+                        existingTag.setPosition(newTagPos);
+                    }else{
+                        existingTag.objectPosition = object.objectPosition;
+                        existingTag.setPosition(object.objectPosition);
+                    }
+                }
+                
+                // update tag content
+                if(!(existingTag.tag===object.objectTagInfo)){
+                    existingTag.tag = object.objectTagInfo;
+                    // update tag view when not showing details or no details in this step
+                    if(!(existingTag.showDetails && object.objectTagDetails)){
+                        existingTag.setContent('<div class=\'tag\'>' + object.objectTagInfo + '</div>');
+                        existingTag.showDetails = false;
+                    }
+                }
+                
+                // update tag details
+                if(!(existingTag.tagDetails===object.objectTagDetails)){
+                    existingTag.tagDetails = object.objectTagDetails;
+                    if(existingTag.showDetails && object.objectTagDetails){
+                        existingTag.setContent(getObjectDetails(object.objectTagInfo, object.objectTagDetails));
+                    }
+                }
+            }
+            
+            function createObjectTag(object){
+        
+                var tag = new RichMarker({
+                    position: object.objectPosition,
+                    map: gMap,
+                    draggable: true,
+                    flat: true,
+                    content: '<div class=\'tag\'>' + object.objectTagInfo + '</div>',
+                    tag: object.objectTagInfo,
+                    tagDetails: object.objectTagDetails,
+                    objectPosition: object.objectPosition,
+                    zIndex: Infinity,
+                    visible: show_tags
+                });
+                
+                object.objectTag = tag;
+
+                google.maps.event.addListener(tag, 'position_changed', function() {
+                    if(tag.dragged == true){
+                        var linePath = [tag.objectPosition, tag.getPosition()];
+                        if(!tag.line){
+                            // create new polyline
+                            var line = new google.maps.Polyline({
+                                path: linePath,
+                                strokeColor: '#e6e6e6',
+                                strokeOpacity: 1.0,
+                                strokeWeight: 1,
+                                clickable: false,
+                                map: gMap,
+                                zIndex: Infinity
+                            });
+
+                            tag.line = line;
+                            tag.manual = true;
+                        }
+                        tag.line.setPath(linePath);
+                        tag.positionChanged = true;
+                    }
+                });
+        
+                google.maps.event.addListener(tag, 'dragstart', function() {
+                    tag.dragged = true;
+                    tag.positionChanged = false;
+                });
+        
+                google.maps.event.addListener(tag, 'click', function() {
+                    if(tag.positionChanged==false){
+                        if(tag.showDetails){
+                            tag.setContent('<div class=\'tag\'>' + tag.tag + '</div>');
+                            tag.showDetails = false;
+                        }else if(tag.tagDetails){
+                            tag.setContent(getObjectDetails(tag.tag, tag.tagDetails));
+                            tag.showDetails = true;
+                            onTagClick(object.objectId);
+                        }else
+                        {
+                            onTagClick(object.objectId);
+                        }
+                    }
+                });
+
+                google.maps.event.addListener(tag, 'dblclick', function() {
+                    onTagDoubleClick(object.objectId);
+                });
+            }
+    
+            function getObjectDetails(tag, objectDetails) {
+                html = "<div class=\"popup\"><table class=\"table\" cellspacing=\"0\" cellpadding=\"4\">";
+                html += "<tr class=\"row header\"><td colspan=\"2\">" + tag + "</td></tr>";
+                for(var key in objectDetails){
+                    html += "<tr class=\"row\">";
+                    html += "<td>" + key + "</td>";
+                    html += "<td>" + objectDetails[key] + "</td>";
+                    html += "</tr>";
+                }
+                html += "</table></div>";
+                return html;
+            }
+            
+            function onMapClick(event) 
+            { 
+                if(window.javacallback){ 
+                    var lat = event.latLng.lat(); 
+                    var lon = event.latLng.lng(); 
+                    try { 
+                        window.javacallback.onLocationSelected(lat, lon); 
+                    } catch (err) { 
+                        alert("Error: " + err); 
+                    } 
+                }
+                //alert("onMapClick()");
+            }
+            
+            function onTagClick(objectId)
+            {
+                if(window.javacallback){
+                    try{
+                        window.javacallback.onTagSelected(objectId);
+                    }catch(err) {
+                        alert("Error: " + err);
+                    }
+                }
+            }
+
+            function onTagDoubleClick(objectId)
+            {
+                if(window.javacallback){
+                    try{
+                        window.javacallback.onTagDoubleClick(objectId);
+                    }catch(err) {
+                        alert("Error: " + err);
+                    }
+                }
+            }
+    
+            function startListeningLocations(){
+                google.maps.event.addListener(gMap, 'click', onMapClick);
+                //alert("Start listening locations");
+            }
+    
+            function stopListeningLocations(){
+                google.maps.event.clearListeners(gMap, 'click');
+                //alert("Stop listening locations"); 
+            }
+    
+            /*
+            function computeOffset(latitude, longitude, distance, heading){
+                var location = new google.maps.LatLng(latitude, longitude);
+                var offset = google.maps.geometry.spherical.computeOffset(location, distance, heading);
+                return [offset.lat(), offset.lng()];
+            }
+    
+            function computeAngle(srcLat, srcLon, targetLat, targetLon){
+                var srcLoc = new google.maps.LatLng(srcLat, srcLon);
+                var targetLoc = new google.maps.LatLng(targetLat, targetLon);
+                return google.maps.geometry.spherical.computeHeading(srcLoc, targetLoc);
+            }
+    
+            function computeDistance(srcLat, srcLon, targetLat, targetLon){
+                var srcLoc = new google.maps.LatLng(srcLat, srcLon);
+                var targetLoc = new google.maps.LatLng(targetLat, targetLon);
+                return google.maps.geometry.spherical.computeDistanceBetween(srcLoc, targetLoc);
+            }
+             */
+        </script>
+    </head>
+    <body onload="initialize()">
+        <div id="map_canvas" style="width:100%; height:100%"></div>
+    </body>
+</html>
